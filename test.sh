@@ -1,4 +1,4 @@
 #!/bin/bash
 
-iverilog -o control control_tb.v
-./control
+iverilog -o mips mips.v
+./mips
