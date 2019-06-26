@@ -1,33 +1,35 @@
 `timescale 1us/1ns
 
-module lw_testbench();
-  reg  clk, reg_wenable, mem_wenable;
-  reg [2:0] alucontrol;
-  reg [31:0] pc;
+module datapath_testbench();
+  reg  clk, reset, reg_wenable, mem_wenable;
+  reg  [2:0] alucontrol;
+  wire [31:0] pc;
 
-  top dut(clk, reg_wenable, mem_wenable, alucontrol, pc);
+  top dut(clk, reset, reg_wenable, mem_wenable, alucontrol, pc);
 
-  initial begin
-    clk = 0;
-    pc = 0;
-    reg_wenable = 1;
-    mem_wenable = 0;
-    alucontrol = 000;
-
-    forever begin
-      #5; clk = ~clk;
-    end
+  always begin
+    clk <= 1; #5; clk <= 0; #5;
   end
 
   initial begin
-    $dumpfile("lw_testbench.vcd");
-    $dumpvars(0, lw_testbench);
+    $dumpfile("datapath_testbench.vcd");
+    $dumpvars(0, datapath_testbench);
     // $monitor("rd = %b", rd);
+
+    reg_wenable <= 1;
+    mem_wenable <= 0;
+    alucontrol <= 000;
+    reset <= 1;
+
+    @(negedge clk);
+    reset <= 0;
 
     @(posedge clk);
     @(posedge clk);
+    @(posedge clk);
+    @(posedge clk);
     begin
-      if(dut.regfile.registers[10] === 1) begin
+      if(dut.regfile.registers[10] === 2) begin
         $display("Simulation succeeded");
       end 
       else begin
@@ -38,9 +40,9 @@ module lw_testbench();
   end
 endmodule
 
-module top(input wire clk, reg_wenable, mem_wenable,
-           input wire [2:0] alucontrol,
-           input wire [31:0] pc);
+module top(input  wire clk, reset, reg_wenable, mem_wenable,
+           input  wire [2:0] alucontrol,
+           output wire [31:0] pc);
   wire [4:0] temp_addr;
   wire [31:0] instr;
   wire [31:0] reg_rdata1, reg_rdata2;
@@ -48,8 +50,11 @@ module top(input wire clk, reg_wenable, mem_wenable,
   wire [31:0] aluresult;
   wire zeroflag;
   wire [31:0] mem_rdata, mem_wdata;
+  wire [31:0] pc_plus4;
   
-  imem    imem(pc, instr);
+  pcreg   pcreg(clk, reset, pc_plus4, pc);
+  adder   add4(pc, 4, pc_plus4);
+  imem    imem(pc[7:2], instr);
   regfile regfile(clk, reg_wenable,
                   instr[20:16], mem_rdata,
                   instr[25:21], temp_addr,
@@ -63,7 +68,7 @@ module top(input wire clk, reg_wenable, mem_wenable,
                mem_rdata);
 endmodule
 
-module imem(input  wire [31:0] addr,
+module imem(input  wire [5:0] addr,
             output wire [31:0] rdata);
   reg [31:0] mem[63:0];
 
@@ -98,7 +103,9 @@ module dmem(input  wire clk,   wenable,
   initial begin
     for(i = 0; i < MEM_SIZE; i = i+1) 
       mem[i] = 0;
-    mem[2] = 1;
+    mem[0] = 0;
+    mem[1] = 1;
+    mem[2] = 2;
   end
 
   assign rdata = mem[addr];
@@ -115,6 +122,11 @@ module pcreg(input wire clk, reset,
       q <= 0;
     else
       q <= d;
+endmodule
+
+module adder(input  wire [31:0] a, b,
+             output wire [31:0] y);
+  assign y = a + b;
 endmodule
 
 module alu(input  wire [2:0]  control,
