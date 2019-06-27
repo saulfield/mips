@@ -1,4 +1,4 @@
 #!/bin/bash
 
-yosys control.v -p "write_json control.json"
-netlistsvg -o control.svg control.json
+yosys mips.v -p "prep -top top -flatten; write_json mips.json"
+netlistsvg -o mips.svg mips.json

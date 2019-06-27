@@ -1,24 +1,24 @@
 `timescale 1us/1ns
 
-module datapath_testbench();
-  reg  clk, reset, reg_wenable, mem_wenable;
-  reg  [2:0] alucontrol;
+// ==========================================================================
+// Testbench
+// ==========================================================================
+
+module mips_testbench();
+  reg  clk, reset;
   wire [31:0] pc;
 
-  top dut(clk, reset, reg_wenable, mem_wenable, alucontrol, pc);
+  mips_cpu dut(clk, reset, pc);
 
   always begin
     clk <= 1; #5; clk <= 0; #5;
   end
 
   initial begin
-    $dumpfile("datapath_testbench.vcd");
-    $dumpvars(0, datapath_testbench);
+    $dumpfile("mips_testbench.vcd");
+    $dumpvars(0, mips_testbench);
     // $monitor("rd = %b", rd);
 
-    reg_wenable <= 1;
-    mem_wenable <= 0;
-    alucontrol <= 000;
     reset <= 1;
 
     @(negedge clk);
@@ -29,7 +29,7 @@ module datapath_testbench();
     @(posedge clk);
     @(posedge clk);
     begin
-      if(dut.regfile.registers[10] === 2) begin
+      if(dut.datapath.regfile.registers[10] === 4 && dut.datapath.dmem.mem[2] === 4) begin
         $display("Simulation succeeded");
       end 
       else begin
@@ -40,36 +40,113 @@ module datapath_testbench();
   end
 endmodule
 
-module top(input  wire clk, reset, reg_wenable, mem_wenable,
-           input  wire [2:0] alucontrol,
-           output wire [31:0] pc);
-  wire [4:0] temp_addr;
-  wire [31:0] instr;
-  wire [31:0] reg_rdata1, reg_rdata2;
-  wire [31:0] signimm;
-  wire [31:0] aluresult;
-  wire zeroflag;
-  wire [31:0] mem_rdata, mem_wdata;
-  wire [31:0] pc_plus4;
+
+// ==========================================================================
+// Top
+// ==========================================================================
+
+module mips_cpu(input         clk,
+                input         reset,
+                output [31:0] pc);
   
-  pcreg   pcreg(clk, reset, pc_plus4, pc);
-  adder   add4(pc, 4, pc_plus4);
-  imem    imem(pc[7:2], instr);
-  regfile regfile(clk, reg_wenable,
-                  instr[20:16], mem_rdata,
-                  instr[25:21], temp_addr,
-                  reg_rdata1, reg_rdata2);
-  signex  signex(instr[15:0], signimm);
-  alu     alu(alucontrol,
-              reg_rdata1, signimm,
-              aluresult, zeroflag);
-  dmem    dmem(clk, mem_wenable,
-               aluresult, mem_wdata, 
-               mem_rdata);
+  // control signals
+  wire [2:0]  alu_ctrl;
+  wire        reg_wsrc;
+  wire        mem_write;
+  wire        branch;
+  wire        alu_src;
+  wire        reg_dest;
+  wire        reg_write;
+
+  // misc.
+  wire [31:0] instr;
+
+  imem imem(pc[7:2], instr);
+
+  control control(
+    .opcode     (instr[31:26]),
+    .funct      (instr[5:0]),
+    .alu_ctrl   (alu_ctrl),
+    .reg_wsrc   (reg_wsrc),
+    .mem_write  (mem_write),
+    .branch     (branch),
+    .alu_src    (alu_src),
+    .reg_dest   (reg_dest),
+    .reg_write  (reg_write)
+  );
+
+  datapath datapath(
+    .clk        (clk),
+    .reset      (reset),
+    .alu_ctrl   (alu_ctrl),
+    .reg_wsrc   (reg_wsrc),
+    .mem_write  (mem_write),
+    .branch     (branch),
+    .alu_src    (alu_src),
+    .reg_dest   (reg_dest),
+    .reg_write  (reg_write),
+    .pc         (pc)
+  );
+
 endmodule
 
-module imem(input  wire [5:0] addr,
-            output wire [31:0] rdata);
+// ==========================================================================
+// Datapath
+// ==========================================================================
+
+module datapath(input         clk,
+                input         reset,
+                input  [2:0]  alu_ctrl,
+                input         reg_wsrc,
+                input         mem_write,
+                input         branch,
+                input         alu_src,
+                input         reg_dest,
+                input         reg_write,
+                output [31:0] pc);
+
+  wire [4:0] reg_waddr;
+  wire [31:0] instr;
+  wire [31:0] reg_rdata1, reg_rdata2;
+  wire [31:0] reg_wdata;
+  wire [31:0] sign_imm;
+  wire [31:0] mem_rdata;
+  wire [31:0] pc_plus4;
+  wire [31:0] pc_next;
+  wire [31:0] pc_branch;
+  wire [31:0] alu_in2;
+  wire [31:0] alu_result;
+  wire [31:0] sign_imm_sl2;
+  wire pc_src;
+  wire zero_flag;
+
+  // pc
+  and2       pcsrc_and(branch, zero, pc_src);
+  mux2 #(32) pcsrc_mux(pc_src, pc_plus4, pc_branch, pc_next);
+  pcreg      pcreg(clk, reset, pc_next, pc);
+  adder      pcadd4(pc, 4, pc_plus4);
+  sl2        pcsl2(sign_imm, sign_imm_sl2);
+  adder      pcaddbranch(sign_imm_sl2, pc_plus4, pc_branch);
+
+  // registers, ALU, memory
+  regfile    regfile(clk, reg_write,
+                     reg_waddr, reg_wdata,
+                     instr[25:21], reg_rdata1,
+                     instr[20:16], reg_rdata2);
+  mux2 #(5)  regdst_mux(reg_dest, instr[20:16], instr[15:11], reg_waddr);
+  signex     signex(instr[15:0], sign_imm);
+  mux2 #(32) alu_in2_mux(alu_src, reg_rdata2, sign_imm, alu_in2);
+  alu        alu(alu_ctrl,
+                 reg_rdata1, alu_in2,
+                 alu_result, zero_flag);
+  dmem       dmem(clk, mem_write,
+                  alu_result, reg_rdata2, 
+                  mem_rdata);
+  mux2 #(32) reg_wdata_mux(reg_wsrc, alu_result, mem_rdata, reg_wdata);
+endmodule
+
+module imem(input  [5:0] addr,
+            output [31:0] rdata);
   reg [31:0] mem[63:0];
 
   initial
@@ -78,11 +155,45 @@ module imem(input  wire [5:0] addr,
   assign rdata = mem[addr];
 endmodule
 
-module regfile(input  wire clk,   wenable,
-               input  wire [4:0]  waddr,
-               input  wire [31:0] wdata,
-               input  wire [4:0]  raddr1, raddr2,
-               output wire [31:0] rdata1, rdata2);
+module dmem(input  clk,   wenable,
+            input  [31:0] addr, 
+            input  [31:0] wdata,
+            output [31:0] rdata);
+  parameter MEM_SIZE = 64;
+  reg [31:0] mem[MEM_SIZE-1:0];
+
+  integer i;
+  initial begin
+    for(i = 0; i < MEM_SIZE; i = i+1) 
+      mem[i] <= 0;
+    // mem[0] <= 0;
+    mem[1] <= 4;
+    // mem[2] <= 2;
+  end
+
+  assign rdata = mem[addr];
+  
+  always @(posedge clk)
+    if (wenable) mem[addr] <= wdata;
+endmodule
+
+module and2(input  a, b,
+            output y);
+  assign y = a & b;
+endmodule
+
+module sl2(input  [31:0] in,
+           output [31:0] out);
+  assign out = {in[29:0], 2'b00};
+endmodule
+
+module regfile(input  clk,   wenable,
+               input  [4:0]  waddr,
+               input  [31:0] wdata,
+               input  [4:0]  raddr1, 
+               output [31:0] rdata1,
+               input  [4:0]  raddr2,
+               output [31:0] rdata2);
   reg [31:0] registers[31:0];
 
   always @(posedge clk)
@@ -92,30 +203,8 @@ module regfile(input  wire clk,   wenable,
   assign rdata2 = (raddr2 != 0) ? registers[raddr2] : 0;
 endmodule
 
-module dmem(input  wire clk,   wenable,
-            input  wire [31:0] addr, 
-            input  wire [31:0] wdata,
-            output wire [31:0] rdata);
-  parameter MEM_SIZE = 64;
-  reg [31:0] mem[MEM_SIZE-1:0];
-
-  integer i;
-  initial begin
-    for(i = 0; i < MEM_SIZE; i = i+1) 
-      mem[i] = 0;
-    mem[0] = 0;
-    mem[1] = 1;
-    mem[2] = 2;
-  end
-
-  assign rdata = mem[addr];
-  
-  always @(posedge clk)
-    if (wenable) mem[addr] <= wdata;
-endmodule
-
-module pcreg(input wire clk, reset,
-             input wire [31:0] d,
+module pcreg(input  clk, reset,
+             input  [31:0] d,
              output reg [31:0] q);
   always @(posedge clk or posedge reset)
     if (reset)
@@ -124,88 +213,107 @@ module pcreg(input wire clk, reset,
       q <= d;
 endmodule
 
-module adder(input  wire [31:0] a, b,
-             output wire [31:0] y);
+module adder(input  [31:0] a, b,
+             output [31:0] y);
   assign y = a + b;
 endmodule
 
-module alu(input  wire [2:0]  control,
-           input  wire [31:0] a, b,
-           output wire [31:0] result,
-           output wire zeroflag);
+module alu(input  [2:0]  control,
+           input  [31:0] a, b,
+           output [31:0] result,
+           output zeroflag);
   assign result = a + b;
 endmodule
 
-module signex(input  wire [15:0] in,
-              output wire [31:0] out);
+module signex(input  [15:0] in,
+              output [31:0] out);
   assign out = {{16{in[15]}}, in};
 endmodule
 
-/*
+module mux2 #(parameter WIDTH = 8)
+             (input  s,
+              input  [WIDTH-1:0] a, b,
+              output [WIDTH-1:0] y);
+  assign y = s ? b : a;
+endmodule
 
-module instr_mem_tb();
-  reg  clk, reset;
-  reg  [31:0] a;
-  wire [31:0] rd;
+// ==========================================================================
+// Control
+// ==========================================================================
 
-  instr_mem dut(a, rd);
+module control(input  [5:0] opcode,
+               input  [5:0] funct,
+               output [2:0] alu_ctrl,
+               output       reg_wsrc,
+               output       mem_write,
+               output       branch,
+               output       alu_src,
+               output       reg_dest,
+               output       reg_write);
+  wire [1:0] alu_op;
 
-  initial begin
-    clk = 0;
-    a = 0;
-    forever begin
-      #5; clk = ~clk;
-    end
-  end
+  main_decoder main_decoder(
+    .opcode   (opcode),
+    .alu_op   (alu_op),
+    .reg_wsrc (reg_wsrc),
+    .mem_write(mem_write),
+    .branch   (branch),
+    .alu_src  (alu_src),
+    .reg_dest (reg_dest),
+    .reg_write(reg_write)
+  );
 
-  initial begin
-    $dumpfile("instr_mem.vcd");
-    $dumpvars(0, instr_mem_tb);
-    $monitor("rd = %b", rd);
+  alu_decoder alu_decoder(
+    .funct    (funct),
+    .alu_op   (alu_op),
+    .alu_ctrl (alu_ctrl)
+  );
+endmodule
 
-    @(posedge clk);
-    a = 1;
-    @(posedge clk);
-    a = 2;
+module main_decoder(input  [5:0] opcode,
+                    output [1:0] alu_op,
+                    output       reg_wsrc,
+                    output       mem_write,
+                    output       branch,
+                    output       alu_src,
+                    output       reg_dest,
+                    output       reg_write);
+  reg [7:0] controls;
+  assign {reg_write, reg_dest, alu_src, branch, mem_write, reg_wsrc, alu_op}
+    = controls;
 
-    $finish;
+  always @(*) begin
+    case (opcode)
+      6'b000000: controls <= 8'b11000010; // R-type
+      6'b100011: controls <= 8'b10100100; // lw
+      6'b101011: controls <= 8'b0x101x00; // se
+      6'b000100: controls <= 8'b0x010x01; // beq
+      default: controls <= 8'bxxxxxxxx;
+    endcase
   end
 endmodule
 
-module pcreg_tb();
-  reg  clk, reset;
-  reg  [7:0] d;
-  wire [7:0] q;
+module alu_decoder(input  [5:0] funct,
+                   input  [1:0] alu_op,
+                   output [2:0] alu_ctrl);
+  reg [2:0] alu_ctrl;
 
-  pcreg dut(clk, reset, d, q);
-
-  initial begin
-    clk = 0;
-    reset = 1;
-    d = 0;
-    forever begin
-      #5; clk = ~clk;
-    end
-  end
-
-  initial begin
-    $dumpfile("counter.vcd");
-    $dumpvars(0, pcreg_tb);
-    $monitor("q = %b", q);
-
-    @(posedge clk);
-    reset <= 0;
-    d <= 11010010;
-
-    @(posedge clk);
-
-    @(negedge clk);
-    reset <= 1;
-
-    $finish;
+  always @(*) begin
+    case (alu_op)
+      2'b00: alu_ctrl <= 3'b010;
+      2'b01: alu_ctrl <= 3'b110;
+      default: case (funct)
+        6'b100000: alu_ctrl <= 3'b010;
+        6'b100010: alu_ctrl <= 3'b110;
+        6'b100100: alu_ctrl <= 3'b000;
+        6'b100101: alu_ctrl <= 3'b001;
+        6'b101010: alu_ctrl <= 3'b111;
+        default: alu_ctrl <= 3'bxxx;
+      endcase
+    endcase
   end
 endmodule
-*/
+
 /*
 module testbench();
   reg clk, reset;
