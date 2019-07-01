@@ -150,7 +150,7 @@ module imem(input  [5:0] addr,
   reg [31:0] mem[63:0];
 
   initial
-    $readmemb("code.dat", mem);
+    $readmemb("rtl/code.dat", mem);
 
   assign rdata = mem[addr];
 endmodule

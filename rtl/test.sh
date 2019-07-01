@@ -1,4 +1,4 @@
 #!/bin/bash
 
-iverilog -o mips mips.v
-./mips
+iverilog -o rtl/mips rtl/mips.v
+./rtl/mips
