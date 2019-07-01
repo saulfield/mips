@@ -31,7 +31,7 @@ module mips_testbench();
     begin
       if(dut.datapath.regfile.registers[10] === 4 && dut.datapath.dmem.mem[2] === 4) begin
         $display("Simulation succeeded");
-      end 
+      end
       else begin
         $display("Simulation failed");
       end
@@ -39,7 +39,6 @@ module mips_testbench();
     $finish;
   end
 endmodule
-
 
 // ==========================================================================
 // Top
@@ -85,6 +84,7 @@ module mips_cpu(input         clk,
     .alu_src    (alu_src),
     .reg_dest   (reg_dest),
     .reg_write  (reg_write),
+    .instr      (instr),
     .pc         (pc)
   );
 
@@ -103,10 +103,10 @@ module datapath(input         clk,
                 input         alu_src,
                 input         reg_dest,
                 input         reg_write,
+                input  [31:0] instr,
                 output [31:0] pc);
 
   wire [4:0] reg_waddr;
-  wire [31:0] instr;
   wire [31:0] reg_rdata1, reg_rdata2;
   wire [31:0] reg_wdata;
   wire [31:0] sign_imm;
