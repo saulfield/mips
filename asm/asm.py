@@ -1,10 +1,14 @@
 from struct import pack
 
+# instruction set reference:
+# https://ti.tuwien.ac.at/cps/teaching/courses/cavo/files/MIPS32-IS.pdf
+
 # opcodes
 OP_RTYPE    = 0b000000
 OP_BEQ      = 0b000100
 OP_LW       = 0b100011
 OP_SW       = 0b101011
+OP_ADDI     = 0b001000
 
 # funct field codes
 FUNCT_ADD   = 0b100000
@@ -60,6 +64,10 @@ def OR(rd, rs, rt):
 def SLT(rd, rs, rt):
     return R_TYPE(OP_RTYPE, rs, rt, rd, 0, FUNCT_SLT)
 
+# ADDI rt, rs, immediate
+def ADDI(rt, rs, imm):
+    return I_TYPE(OP_ADDI, rs, rt, imm)
+
 # LW rt, offset(base)
 def LW(rt, base, offset):
     return I_TYPE(OP_LW, base, rt, offset)
@@ -74,10 +82,8 @@ def BEQ(): pass
 # write to file
 
 code = [
-    ADD(t0, t3, t5),
-    SUB(t0, t3, t5),
-    # LW(t2, 0, 1),
-    # SW(t2, 0, 2)
+    ADDI(t2, 0, 5),
+    SW(t2, 0, 7)
 ]
 
 binary = False

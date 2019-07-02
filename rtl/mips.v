@@ -29,7 +29,7 @@ module mips_testbench();
     @(posedge clk);
     @(posedge clk);
     begin
-      if(dut.datapath.regfile.registers[10] === 4 && dut.datapath.dmem.mem[2] === 4) begin
+      if(dut.datapath.regfile.registers[10] === 5 && dut.datapath.dmem.mem[7] === 5) begin
         $display("Simulation succeeded");
       end
       else begin
@@ -288,6 +288,7 @@ module main_decoder(input  [5:0] opcode,
       6'b100011: controls <= 8'b10100100; // lw
       6'b101011: controls <= 8'b0x101x00; // se
       6'b000100: controls <= 8'b0x010x01; // beq
+      6'b001000: controls <= 8'b10100000; // addi
       default: controls <= 8'bxxxxxxxx;
     endcase
   end
