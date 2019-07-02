@@ -76,14 +76,21 @@ def LW(rt, base, offset):
 def SW(rt, base, offset):
     return I_TYPE(OP_SW, base, rt, offset)
 
-def BEQ(): pass
-    # return I_TYPE(OP_BEQ)
+# BEQ rs, rt, offset
+def BEQ(rs, rt, offset):
+    return I_TYPE(OP_BEQ, rs, rt, offset)
 
 # write to file
 
 code = [
+    ADDI(t0, 0, 1),
+    ADDI(t1, 0, 1),
     ADDI(t2, 0, 5),
-    SW(t2, 0, 7)
+    BEQ(t0, t1, 1),
+    ADDI(t2, 0, 0),
+    #LABEL("here"),
+    ADDI(t3, 0, 3),
+    ADDI(t0, 0, 0),
 ]
 
 binary = False

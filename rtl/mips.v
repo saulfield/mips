@@ -24,12 +24,12 @@ module mips_testbench();
     @(negedge clk);
     reset <= 0;
 
-    @(posedge clk);
-    @(posedge clk);
-    @(posedge clk);
-    @(posedge clk);
+    repeat(7)
+      @(posedge clk);
+
     begin
-      if(dut.datapath.regfile.registers[10] === 5 && dut.datapath.dmem.mem[7] === 5) begin
+      if(dut.datapath.regfile.registers[11] === 3 &&
+         dut.datapath.regfile.registers[10] === 5) begin
         $display("Simulation succeeded");
       end
       else begin
@@ -121,7 +121,7 @@ module datapath(input         clk,
   wire zero_flag;
 
   // pc
-  and2       pcsrc_and(branch, zero, pc_src);
+  and2       pcsrc_and(branch, zero_flag, pc_src);
   mux2 #(32) pcsrc_mux(pc_src, pc_plus4, pc_branch, pc_next);
   pcreg      pcreg(clk, reset, pc_next, pc);
   adder      pcadd4(pc, 4, pc_plus4);
@@ -222,7 +222,20 @@ module alu(input  [2:0]  control,
            input  [31:0] a, b,
            output [31:0] result,
            output zeroflag);
-  assign result = a + b;
+  reg [31:0] result;
+
+  always @(*) begin
+    case (control)
+      3'b010: result <= a + b;
+      3'b110: result <= a - b;
+      3'b000: result <= a & b;
+      3'b001: result <= a | b;
+      3'b111: result <= (a < b);
+      default: result <= 32'bx;
+    endcase
+  end
+
+  assign zeroflag = (result == 32'b0);
 endmodule
 
 module signex(input  [15:0] in,
