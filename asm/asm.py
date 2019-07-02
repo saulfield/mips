@@ -1,3 +1,4 @@
+import types
 from struct import pack
 
 # instruction set reference:
@@ -78,30 +79,51 @@ def SW(rt, base, offset):
 
 # BEQ rs, rt, offset
 def BEQ(rs, rt, offset):
+    if isinstance(offset, str):
+        return lambda resolve: I_TYPE(OP_BEQ, rs, rt, resolve(offset))
     return I_TYPE(OP_BEQ, rs, rt, offset)
+
+def LABEL(label):
+    return label
 
 # write to file
 
 code = [
     ADDI(t0, 0, 1),
-    ADDI(t1, 0, 1),
+    ADD(t1, t0, 0),
     ADDI(t2, 0, 5),
-    BEQ(t0, t1, 1),
+    BEQ(t0, t1, 'here'), #3
     ADDI(t2, 0, 0),
-    #LABEL("here"),
-    ADDI(t3, 0, 3),
+    LABEL('here'),
+    ADDI(t3, 0, 3), #5
     ADDI(t0, 0, 0),
 ]
+
+flat_code = []
+labels = {}
+
+# build symbol table
+for x in code:
+    if isinstance(x, str):
+        assert x not in labels
+        labels[x] = len(flat_code) #5
+    else:
+        flat_code += [x]
+
+# resolve labels
+for i, x in enumerate(flat_code):
+    if isinstance(x, types.LambdaType):
+        flat_code[i] = x(lambda label: labels[label] - i - 1)
 
 binary = False
 
 if binary:
-    code_bytes = pack('2I', *code)
+    code_bytes = pack('2I', *flat_code)
     with open('code.bin', 'wb') as f:
         f.write(code_bytes)
 else:
     with open('rtl/code.dat', 'w') as f:
-        for i in code:
+        for i in flat_code:
             text = format(i, '032b')
             print(text)
             f.write(text + '\n')
