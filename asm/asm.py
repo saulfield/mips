@@ -1,27 +1,34 @@
-from struct import *
+from struct import pack
 
 # opcodes
-OP_RTYPE = 0b000000
-OP_BEQ   = 0b000100
-OP_LW    = 0b100011
-OP_SW    = 0b101011
+OP_RTYPE    = 0b000000
+OP_BEQ      = 0b000100
+OP_LW       = 0b100011
+OP_SW       = 0b101011
+
+# funct field codes
+FUNCT_ADD   = 0b100000
+FUNCT_AND   = 0b100100
+FUNCT_OR    = 0b100101
+FUNCT_SUB   = 0b100010
+FUNCT_SLT   = 0b101010
 
 # registers
-reg = {
-    '$0': 0,
-    '$at': 1,
-    '$v0': 2,  '$v1': 3,
-    '$a0': 4,  '$a1': 5,  '$a2': 6,  '$a3': 7,
-    '$t0': 8,  '$t1': 9,  '$t2': 10, '$t3': 11,
-    '$t4': 12, '$t5': 13, '$t6': 14, '$t7': 15,
-}
+t0 = 8
+t1 = 9
+t2 = 10
+t3 = 11
+t4 = 12
+t5 = 13
+t6 = 14
+t7 = 15
 
 # instruction types
 def R_TYPE(op, rs, rt, rd, shamt, funct):
-    return ((op << 25) |
-            (rs << 20) |
-            (rt << 15) |
-            (rd << 10) |
+    return ((op << 26) |
+            (rs << 21) |
+            (rt << 16) |
+            (rd << 11) |
             (shamt << 6) |
             (funct))
 
@@ -32,41 +39,45 @@ def I_TYPE(op, rs, rt, imm):
             (imm))
 
 # instructions
-# R-type
-def ADD(): pass
-    # return R_TYPE(OP_RTYPE)
 
-def SUB(): pass
-    # return R_TYPE(OP_RTYPE)
+# ADD rd, rs, rt
+def ADD(rd, rs, rt):
+    return R_TYPE(OP_RTYPE, rs, rt, rd, 0, FUNCT_ADD)
 
-def AND(): pass
-    # return R_TYPE(OP_RTYPE)
+# SUB rd, rs, rt
+def SUB(rd, rs, rt):
+    return R_TYPE(OP_RTYPE, rs, rt, rd, 0, FUNCT_SUB)
 
-def OR(): pass
-    # return R_TYPE(OP_RTYPE)
+# AND rd, rs, rt
+def AND(rd, rs, rt):
+    return R_TYPE(OP_RTYPE, rs, rt, rd, 0, FUNCT_AND)
 
-def SLT(): pass
-    # return R_TYPE(OP_RTYPE)
+# OR rd, rs, rt
+def OR(rd, rs, rt):
+    return R_TYPE(OP_RTYPE, rs, rt, rd, 0, FUNCT_OR)
 
-# I-type
+# SLT rd, rs, rt
+def SLT(rd, rs, rt):
+    return R_TYPE(OP_RTYPE, rs, rt, rd, 0, FUNCT_SLT)
+
 # LW rt, offset(base)
 def LW(rt, base, offset):
-    return I_TYPE(OP_LW, reg[base], reg[rt], offset)
+    return I_TYPE(OP_LW, base, rt, offset)
 
 # SW rt, offset(base)
 def SW(rt, base, offset):
-    return I_TYPE(OP_SW, reg[base], reg[rt], offset)
+    return I_TYPE(OP_SW, base, rt, offset)
 
 def BEQ(): pass
     # return I_TYPE(OP_BEQ)
 
-# lw $t2, 32($0)
-# 100011 00000 01010 0000 0000 0010 0000
-# 100011 00000 01010 0000 0000 0010 0000
+# write to file
 
 code = [
-    LW('$t2', '$0', 1),
-    SW('$t2', '$0', 2)
+    ADD(t0, t3, t5),
+    SUB(t0, t3, t5),
+    # LW(t2, 0, 1),
+    # SW(t2, 0, 2)
 ]
 
 binary = False
@@ -78,6 +89,6 @@ if binary:
 else:
     with open('rtl/code.dat', 'w') as f:
         for i in code:
-            text = format(i, 'b')
+            text = format(i, '032b')
             print(text)
             f.write(text + '\n')
