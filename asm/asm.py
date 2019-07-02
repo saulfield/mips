@@ -1,5 +1,4 @@
 import types
-from struct import pack
 
 # instruction set reference:
 # https://ti.tuwien.ac.at/cps/teaching/courses/cavo/files/MIPS32-IS.pdf
@@ -41,9 +40,7 @@ def I_TYPE(op, rs, rt, imm):
     return ((op << 26) |
             (rs << 21) |
             (rt << 16) |
-            (imm))
-
-# instructions
+            (imm & 0xFFFF)) # needed for sign extension
 
 # ADD rd, rs, rt
 def ADD(rd, rs, rt):
@@ -86,17 +83,23 @@ def BEQ(rs, rt, offset):
 def LABEL(label):
     return label
 
-# write to file
-
+# assemble
 code = [
-    ADDI(t0, 0, 1),
-    ADD(t1, t0, 0),
-    ADDI(t2, 0, 5),
-    BEQ(t0, t1, 'here'), #3
-    ADDI(t2, 0, 0),
-    LABEL('here'),
-    ADDI(t3, 0, 3), #5
     ADDI(t0, 0, 0),
+    ADDI(t3, 0, 8),
+    ADDI(t3, t3, 1),
+    ADDI(t4, 0, 1),
+    ADDI(t5, 0, -1),
+
+    LABEL('loop'),
+    BEQ(t3, 0, 'end'),
+    ADD(t4, t4, t5),
+    SUB(t5, t4, t5),
+    ADDI(t3, t3, -1),
+    BEQ(t0, 0, 'loop'),
+
+    LABEL('end'),
+    SW(t4, 0, 87)
 ]
 
 flat_code = []
@@ -115,15 +118,9 @@ for i, x in enumerate(flat_code):
     if isinstance(x, types.LambdaType):
         flat_code[i] = x(lambda label: labels[label] - i - 1)
 
-binary = False
-
-if binary:
-    code_bytes = pack('2I', *flat_code)
-    with open('code.bin', 'wb') as f:
-        f.write(code_bytes)
-else:
-    with open('rtl/code.dat', 'w') as f:
-        for i in flat_code:
-            text = format(i, '032b')
-            print(text)
-            f.write(text + '\n')
+# write to file
+with open('rtl/code.dat', 'w') as f:
+    for i in flat_code:
+        text = format(i, '032b')
+        print(text)
+        f.write(text + '\n')

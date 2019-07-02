@@ -17,23 +17,23 @@ module mips_testbench();
   initial begin
     $dumpfile("mips_testbench.vcd");
     $dumpvars(0, mips_testbench);
-    // $monitor("rd = %b", rd);
+    // $monitor("mem[87] = %d", dut.datapath.dmem.mem[87]);
 
     reset <= 1;
 
     @(negedge clk);
     reset <= 0;
 
-    repeat(7)
+    repeat(100)
       @(posedge clk);
 
     begin
-      if(dut.datapath.regfile.registers[11] === 3 &&
-         dut.datapath.regfile.registers[10] === 5) begin
+      if(dut.datapath.dmem.mem[87] === 21) begin
         $display("Simulation succeeded");
       end
       else begin
         $display("Simulation failed");
+        $display("mem[87] = %d", dut.datapath.dmem.mem[87]);
       end
     end
     $finish;
@@ -106,7 +106,7 @@ module datapath(input         clk,
                 input  [31:0] instr,
                 output [31:0] pc);
 
-  wire [4:0] reg_waddr;
+  wire [4:0]  reg_waddr;
   wire [31:0] reg_rdata1, reg_rdata2;
   wire [31:0] reg_wdata;
   wire [31:0] sign_imm;
@@ -159,17 +159,14 @@ module dmem(input  clk,   wenable,
             input  [31:0] addr, 
             input  [31:0] wdata,
             output [31:0] rdata);
-  parameter MEM_SIZE = 64;
+  parameter MEM_SIZE = 1024;
   reg [31:0] mem[MEM_SIZE-1:0];
 
-  integer i;
-  initial begin
-    for(i = 0; i < MEM_SIZE; i = i+1) 
-      mem[i] <= 0;
-    // mem[0] <= 0;
-    mem[1] <= 4;
-    // mem[2] <= 2;
-  end
+  // integer i;
+  // initial begin
+  //   for(i = 0; i < MEM_SIZE; i = i+1) 
+  //     mem[i] <= 0;
+  // end
 
   assign rdata = mem[addr];
   
@@ -327,63 +324,3 @@ module alu_decoder(input  [5:0] funct,
     endcase
   end
 endmodule
-
-/*
-module testbench();
-  reg clk, reset;
-  reg a, b, c, yexpected;
-  wire y;
-  reg[31:0] vectornum, errors;
-  reg[3:0]  testvectors[10000:0];
-
-  // instantiate device under test
-  sillyfunction dut(.a(a), .b(b), .c(c), .y(y) );
-
-  // generate clock
-  always     // no sensitivity list, so it always executes
-    begin
-      clk = 1; #5; clk = 0; #5; // 10ns period
-    end
-
-  initial
-    begin
-      $display("--------------------------");
-      $display("Loading testvectors");
-      $display("--------------------------");
-      $readmemb("example.tv", testvectors); // Read vectors
-      vectornum = 0; errors = 0;
-      reset = 1; #27; reset = 0;
-
-      $display("--------------------------");
-      $display("Running testbench");
-      $display("--------------------------");
-    end
-
-  always @(posedge clk)
-    begin
-      #1; {a, b, c, yexpected} = testvectors[vectornum];
-    end
-
-  always @(negedge clk)
-    if (!reset)
-    begin
-      if (y !== yexpected)
-      begin
-        $display("Error: input = %b", {a, b, c});
-        $display("       expected = %b", yexpected);
-        $display("       actual = %b", y);
-        errors = errors + 1;
-      end
-
-      vectornum = vectornum + 1;
-      if (testvectors[vectornum] === 4'bx)
-      begin
-        $display("--------------------------");
-        $display("%d tests completed", vectornum);
-        $display("%d error(s)", errors);
-        $display("--------------------------");
-        $finish;
-      end
-    end
-endmodule
-*/
